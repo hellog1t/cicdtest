@@ -1,4 +1,4 @@
-name: AWS Deploy
+name: AWS Deploy Phase 2
 
 on:
   push:
@@ -9,26 +9,43 @@ permissions:
   contents: read
 
 jobs:
-  # 1. This job runs FIRST to test your code
-  TestCode:
+  # JOB 1: Verify the code is correct
+  Test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check if index.html exists
+      - name: Basic Syntax Check
         run: ls index.html
 
-  # 2. This job runs ONLY if TestCode passes
-  S3Deploy:
-    needs: TestCode
+  # JOB 2: Prepare the "Production" files
+  Build:
+    needs: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Create Production Folder
+        run: |
+          mkdir dist
+          cp index.html dist/
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-website
+          path: dist/
+
+  # JOB 3: Deploy the built files to AWS
+  S3Deploy:
+    needs: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: production-website
       - name: Login to AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
       - name: Upload to S3
-        run: aws s3 cp index.html s3://my-devops-test-99/
-
-
+        run: aws s3 sync . s3://my-devops-test-99/ --exclude ".git/*"
