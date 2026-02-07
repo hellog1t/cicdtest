@@ -1,12 +1,25 @@
 name: AWS Deploy
+
 on:
   push:
     branches: [ main ]
+
 permissions:
   id-token: write
   contents: read
+
 jobs:
+  # 1. This job runs FIRST to test your code
+  TestCode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check if index.html exists
+        run: ls index.html
+
+  # 2. This job runs ONLY if TestCode passes
   S3Deploy:
+    needs: TestCode
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,19 +27,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1 # Change if you picked a different region
+          aws-region: us-east-1
       - name: Upload to S3
         run: aws s3 cp index.html s3://my-devops-test-99/
-  jobs:
-  TestCode:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check if index.html exists
-        run: ls index.html  # If the file is missing, the pipeline fails here
-  
-  S3Deploy:
-    needs: TestCode # This ensures the test passes BEFORE deploying
-    runs-on: ubuntu-latest
-    # ... (keep the rest of your deployment steps here)
+
 
