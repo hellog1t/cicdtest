@@ -1,53 +1,30 @@
-name: AWS Deploy Phase 2
+name: Deploy Lambda
 
 on:
   push:
-    branches: [ main ]
-
-permissions:
-  id-token: write
-  contents: read
+    branches: [ "main" ]
 
 jobs:
-  # JOB 1: Verify the code is correct
-  Test:
+  deploy:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Basic Syntax Check
-        run: ls index.html
 
-  # JOB 2: Prepare the "Production" files
-  Build:
-    needs: Test
-    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Create Production Folder
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Zip Lambda
+        run: zip -r lambda.zip lambda_function.py
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy Lambda
         run: |
-          mkdir dist
-          cp index.html dist/
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-website
-          path: dist/
+          aws lambda update-function-code \
+            --function-name ${{ secrets.update-s3-website }} \
+            --zip-file fileb://lambda.zip
 
-  # JOB 3: Deploy the built files to AWS
-  S3Deploy:
-    needs: Build
-    runs-on: ubuntu-latest
-    environment: 
-       name: production-website
-    steps:
-      - name: Download Build Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: production-website
-      - name: Login to AWS
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-      - name: Upload to S3
-        run: aws s3 sync . s3://my-devops-test-99/ --exclude ".git/*"
